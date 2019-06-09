@@ -97,20 +97,6 @@ function setMeasures() {
 
 	// Get how many hexagon rows can be put on screen, and how many hexagons can each row fit;
 	hexInRow = Math.ceil((width - (width / 2 + hexShortDiag / 2)) / hexShortDiag) * 2 + 1;
-	rowCount = 0;
-
-	let full = false;
-	let currentHeight = height / 2;
-	while (!full) {
-		if (rowCount % 2) currentHeight -= hexLongDiag
-		else currentHeight -= hexSide;
-
-		if (currentHeight < 0) {
-			full = true;
-			rowCount = rowCount * 2 + 1;
-		}
-		else rowCount++;
-	}
 }
 
 function drawHexagon(w, h, dist) {
@@ -161,8 +147,10 @@ function draw() {
 			currentRow++;
 		}
 	}
+
+	rowCount = (currentRow - 1) * 2 + 1;
 	centralHex = hexgrid[`hex_0_${Math.floor(hexInRow / 2)}`];
-	
+
 	// Set fade-in animation, with duration based on how close the element is to the screen center;
 	const maxDist = Object.values(hexgrid).sort((a, b) => b.centerDistance - a.centerDistance)[0].centerDistance;
 	const maxFadeTime = 1;
@@ -189,32 +177,50 @@ function draw() {
 	mainText.zIndex = 2;
 	stage.addChild(mainText);
 
+	const graphics = new PIXI.Graphics();
+	graphics.beginFill(0xf4429e);
+	graphics.moveTo(0, 0 + hexLongDiag / 2);
+	graphics.lineTo(0 + hexShortDiag / 2, 0 + hexLongDiag / 4);
+	graphics.lineTo(0 + hexShortDiag / 2, 0 - hexLongDiag / 4);
+	graphics.lineTo(0, 0 - hexLongDiag / 2);
+	graphics.lineTo(0 - hexShortDiag / 2, 0 - hexLongDiag / 4);
+	graphics.lineTo(0 - hexShortDiag / 2, 0 + hexLongDiag / 4);
+	graphics.endFill();
+	const txt = graphics.generateTexture();
+	const middleFill = new PIXI.Sprite(txt);
+	middleFill.anchor.set(.5, .5);
+	middleFill.x = width / 2;
+	middleFill.y = height / 2;
+	middleFill.zIndex = 5;
+	middleFill.scale.x = 0;
+	middleFill.scale.y = 0;
+	stage.addChild(middleFill)
+
 	stage.children = updateLayersOrder(stage);
 
 	centralHex.on('click', function() {
 		Object.values(hexgrid).forEach(elem => { 
 			if (elem != this) {
-				// const anim = TweenMax.to(elem, elem.centerDistance / maxDist * maxFadeTime, {pixi: {tint: 0x00ff26}, ease: Cubic.easeIn});
-				const anim = TweenMax.to(elem, maxFadeTime - (elem.centerDistance / maxDist) * maxFadeTime, {alpha: 0, ease: Cubic.easeIn});
+				TweenMax.to(elem, maxFadeTime - (elem.centerDistance / maxDist) * maxFadeTime, {alpha: 0, ease: Cubic.easeIn});
 			} else {
-				const anim = TweenMax.to(elem, .3, {pixi: {rotation: 30, tint: 0x00ff26}, delay: maxFadeTime, ease: Cubic.easeOut, onStart: () => {
-					let newText = [...'GRANTED'];
-					let loopCount = 0;
-					let loop = setInterval(() => {
-						if (loopCount === newText.length - 1) clearInterval(loop);
-						const newLetter = newText[loopCount];
-						mainText.text = mainText.text.substr(0, loopCount) + newLetter + mainText.text.substr(loopCount + 1, mainText.text.length);
+				TweenMax.to(elem, .3, {pixi: {rotation: 30, tint: 0x00ff26}, delay: maxFadeTime, ease: Cubic.easeOut, 
+					onStart: () => {
+						let newText = 'GRANTED';
+						let loopCount = 0;
+						let loop = setInterval(() => {
+							if (loopCount === newText.length - 1) clearInterval(loop);
+							mainText.text = mainText.text.substr(0, loopCount) + newText[loopCount] + mainText.text.substr(loopCount + 1, mainText.text.length);
 
-						loopCount++;
-					}, 300 / newText.length);
-				}, onComplete: () => {
-					const maxFadeTime = .8;
-
-					Object.values(hexgrid).forEach(elem => {
-						elem.tint = 0x00ff26;	
-						TweenMax.to(elem, elem.centerDistance / maxDist * maxFadeTime, {alpha: 1, ease: Cubic.easeIn});
-					});
-				}});
+							loopCount++;
+						}, 300 / newText.length); 
+					}, 
+					onComplete: () => {
+						TweenMax.to(middleFill, .2, {pixi: {scaleX: 1, scaleY: 1}, ease: Cubic.easeIn});
+						// Object.values(hexgrid).forEach(elem => {
+						// 	TweenMax.to(elem, .5, {y: -200, delay: rand, ease: Cubic.easeIn});
+						// });
+					}
+				});
 			}
 		});
 	});
