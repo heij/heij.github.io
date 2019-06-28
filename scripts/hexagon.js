@@ -1,13 +1,21 @@
 const scrollUpEvent = new Event('scrollUp');
 const scrollDownEvent = new Event('scrollDown');
-let	app, renderer, stage,
- 	width, height, 
+let app, renderer, stage,
+	width, height, screenCenter,
 	hexgrid, hexTexture, hexShortDiag, hexSide, hexLongDiag,
 	hexInRow, rowCount, centralHex, mainText;
 
+let screens = {
+	home:'',
+	projects:'',
+	contact:'',
+	about:'',
+	expanded: ''
+};
+
 WebFont.load({
 	google: {
-	  families: ['Orbitron']
+		families: ['Orbitron']
 	},
 	active: setup
 });
@@ -33,31 +41,28 @@ function setup() {
 }
 
 function getHexTexture() {
-	const elem = new PIXI.Graphics();
-	elem.lineStyle(1, 0x000000, 1);
-	// elem.lineStyle(2, 0xdf42f4, 1);
-	// elem.beginFill(0x42f489);
-	elem.beginFill(0xffffff);
-	elem.moveTo(0, 0 + hexLongDiag / 2);
-	elem.lineTo(0 + hexShortDiag / 2, 0 + hexLongDiag / 4);
-	elem.lineTo(0 + hexShortDiag / 2, 0 - hexLongDiag / 4);
-	elem.lineTo(0, 0 - hexLongDiag / 2);
-	elem.lineTo(0 - hexShortDiag / 2, 0 - hexLongDiag / 4);
-	elem.lineTo(0 - hexShortDiag / 2, 0 + hexLongDiag / 4);
-	elem.endFill();
-	return elem.generateTexture();
+	const hexTexture = new PIXI.Graphics();
+	hexTexture.beginFill(0xffffff);
+	hexTexture.moveTo(0, 0 + hexLongDiag / 2);
+	hexTexture.lineTo(0 + hexShortDiag / 2, 0 + hexLongDiag / 4);
+	hexTexture.lineTo(0 + hexShortDiag / 2, 0 - hexLongDiag / 4);
+	hexTexture.lineTo(0, 0 - hexLongDiag / 2);
+	hexTexture.lineTo(0 - hexShortDiag / 2, 0 - hexLongDiag / 4);
+	hexTexture.lineTo(0 - hexShortDiag / 2, 0 + hexLongDiag / 4);
+	hexTexture.endFill();
+	return hexTexture.generateTexture();
 }
 
-function drawHexagon(w, h, rowIndex, indexInRow) {
+function drawHexagon(w, h) {
 	const TSprite = new PIXI.Sprite(hexTexture);
 	TSprite.anchor.set(.5, .5);
 	TSprite.x = w;
 	TSprite.y = h;
-	TSprite.alpha = 0;
-	TSprite.centerDistance = getDistToCenter(rowIndex, indexInRow, h);
+	TSprite.centerDistance = getDistToCenter(w, h);
 	TSprite.scale.x = .95;
 	TSprite.scale.y = .95;
 	TSprite.zIndex = 0;
+	// TSprite.tint = 0xe8701b;
 	TSprite.tint = 0xe8701b;
 	TSprite.centerCoordinates = [w, h];
 
@@ -70,9 +75,7 @@ function drawHexRow(rowIndex, rowHeight) {
 			(res, hex, indexInRow) => {
 				res[`hex_${rowIndex}_${indexInRow}`] = drawHexagon(
 					width / 2 - ((Math.floor(hexInRow / 2) - indexInRow) * hexShortDiag) - hexShortDiag / 2,
-					rowHeight,
-					rowIndex,
-					indexInRow
+					rowHeight
 				);
 				return res;
 			}, {}
@@ -82,9 +85,7 @@ function drawHexRow(rowIndex, rowHeight) {
 			(res, hex, indexInRow) => {
 				res[`hex_${rowIndex}_${indexInRow}`] = drawHexagon(
 					width / 2 - ((Math.floor(hexInRow / 2) - indexInRow) * hexShortDiag),
-					rowHeight,
-					rowIndex,
-					indexInRow
+					rowHeight
 				);
 				return res;
 			}, {}
@@ -92,21 +93,56 @@ function drawHexRow(rowIndex, rowHeight) {
 	}
 }
 
-function getDistToCenter(rowIndex, indexInRow, rowHeight) {
-	return rowIndex % 2
-		? Math.sqrt(
-				Math.pow(width / 2 - (width / 2 - ((Math.floor(hexInRow / 2) - indexInRow) * hexShortDiag) - hexShortDiag / 2), 2) + 
-				Math.pow(height / 2 - rowHeight, 2)
-			)
-		: Math.sqrt(
-				Math.pow(width / 2 - (width / 2 - ((Math.floor(hexInRow / 2) - indexInRow) * hexShortDiag)), 2) + 
-				Math.pow(height / 2 - rowHeight, 2)
-			);
+function fillHexGrid() {
+	let hexScreen = new PIXI.Container();
+	let hexScreenBackground = new PIXI.Graphics();
+	hexScreenBackground.beginFill(0xFFD700);
+	hexScreenBackground.moveTo(0, 0);
+	hexScreenBackground.lineTo(width, 0);
+	hexScreenBackground.lineTo(width, height);
+	hexScreenBackground.lineTo(0, height);
+	hexScreenBackground.endFill();
+	hexScreen.addChild(hexScreenBackground);
+
+	// Draw the central row...
+	hexgrid = {
+		...drawHexRow(0, height / 2)
+	}
+
+	// ...keep adding rows until the screen is completely filled;
+	let currentRow = 1;
+	let full = false;
+	while (!full) {
+		const rowHeight = height / 2 - (hexLongDiag / 2 * currentRow) - (hexLongDiag / 4 * currentRow);
+		const revRowHeight = height / 2 + (hexLongDiag / 2 * currentRow) + (hexLongDiag / 4 * currentRow);
+
+		if (rowHeight + hexLongDiag / 2 < 0) {
+			full = true;
+		} else {
+			hexgrid = {
+				...hexgrid,
+				...drawHexRow(currentRow, rowHeight),
+				...drawHexRow(currentRow * -1, revRowHeight)
+			}
+			currentRow++;
+		}
+	}
+	rowCount = (currentRow - 1) * 2 + 1;
+	Object.values(hexgrid).forEach(hex => {
+		hex.tint = 0x000000;
+		hexScreen.addChild(hex)
+	});
+	return hexScreen;
+}
+
+function getDistToCenter(w, h) {
+	return Math.sqrt(Math.pow(screenCenter[0] - w, 2) + Math.pow(screenCenter[1] - h, 2));
 }
 
 function setVariables() {
 	width = window.innerWidth;
 	height = window.innerHeight;
+	screenCenter = [width / 2, height / 2];
 	renderer.resize(width, height);
 	hexShortDiag = width / 5;
 	hexSide = hexShortDiag / Math.sqrt(3);
@@ -124,20 +160,20 @@ function setVariables() {
 
 // Sort container elements by zIndex (props to 'tengotengo' => https://github.com/pixijs/pixi.js/issues/300)
 function updateLayersOrder(container) {
-    return container.children.sort((a,b) => {
-        a.zIndex = a.zIndex || 0;
-        b.zIndex = b.zIndex || 0;
-        return a.zIndex - b.zIndex;
-    });
+	return container.children.sort((a, b) => {
+		a.zIndex = a.zIndex || 0;
+		b.zIndex = b.zIndex || 0;
+		return a.zIndex - b.zIndex;
+	});
 }
 
 function addHexText(textContent, w, h) {
 	let textElem = new PIXI.Text(textContent, {
-		fontFamily : 'Orbitron',
+		fontFamily: 'Orbitron',
 		fontSize: hexShortDiag / (textContent.length + 1),
 		fontWeight: 'bold',
-		fill : 0xff0000, 
-		align : 'center'
+		fill: 0xff0000,
+		align: 'center'
 	});
 	textElem.anchor.set(.5);
 	textElem.x = w;
@@ -147,209 +183,126 @@ function addHexText(textContent, w, h) {
 }
 
 function draw() {
+	// Set dimensions and other important variables;
 	setVariables();
 
-	// Clear screen, then draw the central row...
+	// Clear screen;
 	while (stage.children[0]) stage.removeChild(stage.children[0]);
-	hexgrid = {
-		...drawHexRow(0, height / 2)
-	}
 
-	// ...then keep adding rows until the screen is completely filled;
-	let currentRow = 1;
-	let full = false;
-	while (!full) {
-		const rowHeight = height / 2 - (hexLongDiag / 2 * currentRow) - (hexLongDiag / 4 * currentRow);
-		const revRowHeight = height / 2 + (hexLongDiag / 2 * currentRow) + (hexLongDiag / 4 * currentRow);
+	let centerOutline = new PIXI.Sprite(hexTexture);
+	centerOutline.anchor.set(.5, .5);
+	centerOutline.x = width / 2;
+	centerOutline.y = height / 2;
+	centerOutline.centerCoordinates = [width / 2, height / 2];
+	centerOutline.centerDistance = getDistToCenter(width / 2, height / 2);
+	centerOutline.tint = 0xad42f4;
+	let hollowCenter = new PIXI.Sprite(hexTexture);
+	hollowCenter.anchor.set(.5, .5);
+	hollowCenter.x = width / 2;
+	hollowCenter.y = height / 2;
+	hollowCenter.scale.x = .9;
+	hollowCenter.scale.y = .9;
+	hollowCenter.centerCoordinates = [width / 2, height / 2];
+	hollowCenter.centerDistance = getDistToCenter(width / 2, height / 2);
+	hollowCenter.tint = 0x000000;
+	let centerHexContainer = new PIXI.Container();
+	centerHexContainer.addChild(centerOutline);
+	centerHexContainer.addChild(hollowCenter);
 
-		if (rowHeight + hexLongDiag / 2 < 0) {
-			full = true;
-		} else {
-			hexgrid = { 
-				...hexgrid, 
-				...drawHexRow(currentRow, rowHeight),
-				...drawHexRow(currentRow * -1, revRowHeight)
-			}
-			currentRow++;
-		}
-	}
-	rowCount = (currentRow - 1) * 2 + 1;
+	const hexes = [
+		[hexShortDiag, hexLongDiag, 'PROJECTS'],
+		[hexShortDiag, height - hexLongDiag, 'ABOUT'],
+		[width - hexShortDiag, hexLongDiag, 'CONTACT'],
+		[width - hexShortDiag, height - hexLongDiag, 'LINKS'],
+	].map(([x, y, text]) => {
+		let hex = drawHexagon(x, y);
+		let hexContainer = new PIXI.Container();
+		hexContainer.interactive = true;
+ 		hexContainer.buttonMode = true;
+ 		hexContainer.zIndex = 1;
+ 		hexContainer
+ 			.on('mousedown', onDragStart)
+ 			.on('touchstart', onDragStart)
+ 			.on('mouseup', onDragEnd)
+ 			.on('mouseupoutside', onDragEnd)
+ 			.on('touchend', onDragEnd)
+ 			.on('touchendoutside', onDragEnd)
+ 			.on('mousemove', onDragMove)
+ 			.on('touchmove', onDragMove)
 
-	centralHex = hexgrid[`hex_0_${Math.floor(hexInRow / 2)}`];
-	centralHex.interactive = true;
-	centralHex.zIndex = 1;
-
-	mainText = addHexText('ACCESS', ...centralHex.centerCoordinates);
-	stage.addChild(mainText);
-
-	// Set initial fade-in animation, with duration based on how close the element is to the screen center;
-	const maxDist = Object.values(hexgrid).sort((a, b) => b.centerDistance - a.centerDistance)[0].centerDistance;
-	const maxFadeTime = 1;
-	Object.values(hexgrid).forEach(elem => {
-		TweenMax.to(elem, elem.centerDistance / maxDist * maxFadeTime, {alpha: 1, ease: Cubic.easeIn});
-		stage.addChild(elem);
+ 		hexContainer.addChild(hex);
+ 		hexContainer.addChild(addHexText(text, x, y));
+		stage.addChild(hexContainer);
+		return hexContainer;
 	});
 
-	const fillSprite = drawHexagon(width / 2, height / 2);
-	fillSprite.alpha = 1;
-	fillSprite.scale.x = 0;
-	fillSprite.scale.y = 0;
-	fillSprite.zIndex = 1.5;
-	fillSprite.tint = 0x32ff00;
-	stage.addChild(fillSprite);
+	const hexScreen = fillHexGrid();
+	// const mask = drawHexagon(width/2, height/2);
+	let mask = new PIXI.Graphics();
+	mask.beginFill(0xffffff);
+	mask.moveTo(0, 0);
+	mask.lineTo(width, 0);
+	mask.lineTo(width, height);
+	mask.lineTo(0, height);
+	mask.endFill();
+	mask._filters = [new PIXI.filters.BlurFilter(150)]
+	let maskSprite = new PIXI.Sprite(renderer.generateTexture(mask));
+	maskSprite.anchor.set(.5);
+	maskSprite.scale.x = 0;
+	maskSprite.scale.y = 0;
+	maskSprite.x = width / 2;
+	maskSprite.y = height / 2
+	hexScreen.addChild(maskSprite);
+	hexScreen.mask = maskSprite;
 
-	const circleLine = new PIXI.Graphics();
-	circleLine.lineStyle(10, 0x74ff1e, 1);
-	circleLine.drawCircle(0, 0, hexSide);
-	const circleLineSprite = new PIXI.Sprite(circleLine.generateTexture());
-	circleLineSprite.anchor.set(.5);
-	circleLineSprite.x = width / 2;
-	circleLineSprite.y = height / 2;
-	circleLineSprite.scale.x = 0;
-	circleLineSprite.scale.y = 0;
-	circleLineSprite.alpha = 0;
-	circleLineSprite.zIndex = 10;
-	stage.addChild(circleLineSprite)
-
-	const circle = new PIXI.Graphics();
-	circle.beginFill(0xffffff);
-	circle.drawCircle(0, 0, hexSide);
-	circle.endFill();
-	const circleSprite = new PIXI.Sprite(circle.generateTexture());
-	circleSprite.anchor.set(.5);
-	circleSprite.x = width / 2;
-	circleSprite.y = height / 2;
-	circleSprite.scale.x = 0;
-	circleSprite.scale.y = 0;
-	circleSprite.zIndex = 11;
-	stage.addChild(circleSprite);
-
-	centralHex.mouseover = () => {
-		TweenMax.to(centralHex, .5, {pixi: {tint: 0xff8c3a}, ease: Power4.easeOut });
-	}
-	centralHex.mouseout = () => {
-		TweenMax.to(centralHex, .5, {pixi: {tint: 0xe8701b}, ease: Power4.easeOut });
-	}
-
+	stage.addChild(hexScreen);
+	stage.addChild(centerHexContainer);
 	stage.children = updateLayersOrder(stage);
 
-	centralHex.on('click', function() {
-		TweenMax.to(centralHex, 0, {pixi: {tint: 0xe8701b}});
-		centralHex.mouseover = null;
-		centralHex.mouseout = null;
-
-		Object.values(hexgrid).forEach(elem => { 
-			if (elem != this) {
-				TweenMax.to(elem, maxFadeTime - (elem.centerDistance / maxDist) * maxFadeTime, {alpha: 0, ease: Cubic.easeIn});
+	function onDragStart(event) {
+		this.data = event.data;
+		this.children.forEach(item => TweenMax.to(item, .2, {alpha: .7, ease: Cubic.easeIn}));
+		this.dragging = this.data.getLocalPosition(this.parent);
+	}
+	function onDragMove(event) {
+		if (this.dragging) {
+			let newPosition = this.data.getLocalPosition(this.parent);
+			this.children.forEach(item => {
+				item.position.x += (newPosition.x - this.dragging.x);
+				item.position.y += (newPosition.y - this.dragging.y);
+			});
+			if (Math.abs(this.children[0].position.x - screenCenter[0]) < hexShortDiag &&
+					Math.abs(this.children[0].position.y - screenCenter[1]) < hexShortDiag) {
+				TweenMax.to(centerOutline, .2, {pixi: {tint: 0xFFD700}, ease: Cubic.easeOut});
 			} else {
-
+				TweenMax.to(centerOutline, .2, {pixi: {tint: 0xad42f4}, ease: Cubic.easeOut});
 			}
-		});
+			this.dragging = newPosition;
+		}
+	}
+	function onDragEnd() {
+		this.children.forEach(item => TweenMax.to(item, .2, {alpha: 1, ease: Cubic.easeIn}));
 
-		// ease: Back.easeOut.config(2);
-		// TweenMax.to(centralHex, .5, {pixi: {tint: 0x00ff15}, delay: maxFadeTime, ease: Power4.easeInOut,
-		TweenMax.to(fillSprite, .5, {pixi: {scaleX: .95, scaleY: .95}, delay: maxFadeTime, ease: Power4.easeIn,
-			onStart: () => {
-				let newText = 'GRANTED';
-				let loopCount = 0;
-				let loop = setInterval(() => {
-					if (loopCount === newText.length - 1) clearInterval(loop);
-					mainText.text = mainText.text.substr(0, loopCount) + newText[loopCount] + mainText.text.substr(loopCount + 1, mainText.text.length);
-
-					loopCount++;
-				}, 300 / newText.length);
-			},
-			onComplete: () => {
-				TweenMax.to(hexgrid[`hex_1_${Math.floor(hexInRow / 2) - 1}`], 0, {pixi: {alpha: 1, tint: 0x32ff00}});
-				TweenMax.to(hexgrid[`hex_-1_${Math.floor(hexInRow / 2) - 1}`], 0, {pixi: {alpha: 1, tint: 0x32ff00}});
-				TweenMax.to(hexgrid[`hex_1_${Math.floor(hexInRow / 2) + 2}`], 0, {pixi: {alpha: 1, tint: 0x32ff00}});
-				TweenMax.to(hexgrid[`hex_-1_${Math.floor(hexInRow / 2) + 2}`], 0, {pixi: {alpha: 1, tint: 0x32ff00}});
-
-				[
-					[hexgrid[`hex_1_${Math.floor(hexInRow / 2) - 1}`], 'PROJECTS'],
-					[hexgrid[`hex_-1_${Math.floor(hexInRow / 2) - 1}`], 'LINKS'],
-					[hexgrid[`hex_1_${Math.floor(hexInRow / 2) + 2}`], 'ABOUT'],
-					[hexgrid[`hex_-1_${Math.floor(hexInRow / 2) + 2}`], 'CONTACT'],
-				].forEach(([hex, text]) => {
-					stage.addChild(addHexText(text, ...hex.centerCoordinates))
-				});
-
-				stage.mask = circleSprite;
-				circleLineSprite.scale.x = .95;
-				circleLineSprite.scale.y = .95;
-				circleSprite.scale.x = .95;
-				circleSprite.scale.y = .95;
-
-				const line = new PIXI.Graphics();
-				line.lineStyle(5, 0x0cfc38, 1);
-				// line.moveTo(0, 0 + hexLongDiag / 2);
-				line.moveTo(0, 0 + hexLongDiag / 2);
-				line.lineTo(0 + hexShortDiag / 2, 0 + hexLongDiag / 4);
-				const lineTexture = line.generateTexture();
-
-				const TRSprite = new PIXI.Sprite(lineTexture);
-				TRSprite.anchor.set(.5, .5);
-				TRSprite.x = width / 2 + hexShortDiag - hexShortDiag / 4;
-				TRSprite.y = height / 2 - hexSide + hexSide / 4;
-				TRSprite.scale.x = 1.15;
-				TRSprite.scale.y = 1.15;
-				TRSprite.zIndex = -1;
-				stage.addChild(TRSprite);
-
-				const TLSprite = new PIXI.Sprite(lineTexture);
-				TLSprite.anchor.set(.5, .5);
-				TLSprite.x = width / 2 - hexShortDiag + hexShortDiag / 4;
-				TLSprite.y = height / 2 - hexSide + hexSide / 4;
-				TLSprite.scale.x = 1.15;
-				TLSprite.scale.y = 1.15;
-				TLSprite.zIndex = -1;
-				TweenMax.to(TLSprite, 0, {pixi: {rotation: 60}});
-				stage.addChild(TLSprite);
-
-				const BLSprite = new PIXI.Sprite(lineTexture);
-				BLSprite.anchor.set(.5, .5);
-				BLSprite.x = width / 2 - hexShortDiag + hexShortDiag / 4;
-				BLSprite.y = height / 2 + hexSide - hexSide / 4;
-				BLSprite.scale.x = 1.15;
-				BLSprite.scale.y = 1.15;
-				BLSprite.zIndex = -1;
-				TweenMax.to(BLSprite, 0, {pixi: {rotation: 180}});
-				stage.addChild(BLSprite);
-
-				const BRSprite = new PIXI.Sprite(lineTexture);
-				BRSprite.anchor.set(.5, .5);
-				BRSprite.x = width / 2 + hexShortDiag - hexShortDiag / 4;
-				BRSprite.y = height / 2 + hexSide - hexSide / 4;
-				BRSprite.scale.x = 1.15;
-				BRSprite.scale.y = 1.15;
-				BRSprite.zIndex = -1;
-				TweenMax.to(BRSprite, 0, {pixi: {rotation: 240}});
-				stage.addChild(BRSprite);
-
-				stage.children = updateLayersOrder(stage);
-
-				TweenMax.to(circleLineSprite, .5, {alpha: 1, ease: Power4.easeInOut});
-				// TweenMax.to(centralHex, .5, {pixi: {rotation: 30}, ease: Power4.easeInOut});
-				// TweenMax.to(fillSprite, .5, {pixi: {rotation: 30}, ease: Power4.easeInOut, onComplete: () => {
-						TweenMax.to(circleLineSprite.scale, .5, {x: 11, y: 11, ease: Power4.easeInOut});
-						TweenMax.to(circleSprite.scale, .5, {x: 11, y: 11, ease: Power4.easeInOut, onComplete: () => {
-								stage.removeChild(circleSprite);
-								stage.mask = null;
-								stage.removeChild(fillSprite);
-								centralHex.tint = 0x32ff00;
-							}
-						});
-				// 	}
-				// });
-
-				// Object.values(hexgrid).forEach(elem => {
-				// 	elem.tint = 0x32ff00;
-				// 	elem.alpha = 1;
-				// 	TweenMax.to(elem, .5, {y: -200, delay: rand, ease: Cubic.easeIn});
-				// });
-			}
-		});		
-	});
+		if (Math.abs(this.children[0].position.x - screenCenter[0]) < hexShortDiag &&
+				Math.abs(this.children[0].position.y - screenCenter[1]) < hexShortDiag) {
+			TweenMax.to(centerOutline, .2, {pixi: {tint: 0xFFD700}, ease: Cubic.easeOut,
+				onComplete: () => {
+					TweenMax.to(this.children[0], .2, {pixi: {tint: 0xFFD700}, ease: Cubic.easeIn});
+					
+					// stage.children.forEach(item => { if (item != this) TweenMax.to(item, .2, {pixi: {alpha: 0}, ease: Cubic.easeIn}) });
+					TweenMax.to(maskSprite, .2, {pixi:{scaleX: 1, scaleY: 1}, ease: Cubic.easeOut});
+				}
+			});
+			hexes.forEach(hex => { if (hex != this) TweenMax.to(hex, .2, {pixi: {alpha: 0}, ease: Cubic.easeIn}) });
+			this.children.forEach(item => TweenMax.to(item, .2, {pixi: {x: screenCenter[0], y: screenCenter[1]}, ease: Cubic.easeIn}));
+		} else {
+			const newCoordinates = this.children[0].centerCoordinates;
+			this.children.forEach(item => TweenMax.to(item, .2, {pixi: {x: newCoordinates[0], y: newCoordinates[1]}, ease: Cubic.easeIn}));
+			TweenMax.to(this.children[0], .2, {pixi: {tint: 0xe8701b}, ease: Cubic.easeIn});
+		}
+		this.data = null;
+		this.dragging = false;
+	}
 }
 
 function animate() {
@@ -367,7 +320,7 @@ window.addEventListener('scroll', (e) => {
 window.addEventListener('scrollUp', () => {
 });
 
-window.addEventListener('scrollDown', () => {	
+window.addEventListener('scrollDown', () => {
 });
 
 window.addEventListener('resize', () => {
