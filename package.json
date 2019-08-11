@@ -16,5 +16,8 @@
     "url": "https://github.com/heij/heij.github.io/issues"
   },
   "homepage": "https://github.com/heij/heij.github.io#readme",
-  "dependencies": {}
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.17.1"
+  }
 }
