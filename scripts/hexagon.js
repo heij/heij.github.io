@@ -159,8 +159,11 @@ function setup() {
 		resolution: devicePixelRatio
 	});
 	renderer = app.renderer;
-	renderer.view.style.position = 'absolute';
+	renderer.view.style.position = 'fixed';
 	renderer.view.style.display = 'block';
+	renderer.view.style.left = 0;
+	renderer.view.style.top = 0;
+	renderer.view.style.zIndex = 0;
 	document.body.appendChild(renderer.view);
 	stage = new PIXI.Container();
 	stage.sortableChildren = true;
@@ -191,7 +194,7 @@ function draw() {
 	// Clear screen;
 	while (stage.children[0]) stage.removeChild(stage.children[0]);
 
-	screens.projects = new ProjectsScreen(true).toggleVisibility()
+	// screens.projects = new ProjectsScreen(true).toggleVisibility();
 }
 
 function animate() {
